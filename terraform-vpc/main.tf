@@ -66,3 +66,63 @@ resource "aws_route_table_association" "public_rtb_subnet_assoc_prod" {
     subnet_id = aws_subnet.main_public_subnet_a_prod.id
     route_table_id = aws_route_table.public_rtb_prod.id
 }
+
+# Security Group
+resource "aws_security_group" "web_sg_prod" {
+    vpc_id = aws_vpc.main_vpc_prod.id
+
+    ingress {
+        from_port = 80
+        to_port = 80
+        protocol = "tcp"
+        cidr_blocks = [ "0.0.0.0/0" ]
+    }
+
+    ingress {
+        from_port = 22
+        to_port = 22
+        protocol = "tcp"
+        cidr_blocks = [ "0.0.0.0/0" ]
+    }
+
+    egress {
+        from_port = 0
+        to_port = 0
+        protocol = "-1"
+        cidr_blocks = [ "0.0.0.0/0" ]
+    }
+
+    tags = {
+        Name = "web-security-group-prod"
+    }
+  
+}
+
+# EC2 Instance - Web Server
+resource "aws_instance" "web_server_prod" {
+    ami = "ami-0de02246788e4a354"
+    instance_type = "t2.micro"
+    subnet_id = aws_subnet.main_public_subnet_a_prod.id
+    vpc_security_group_ids = [ aws_security_group.web_sg_prod.id ]
+
+    user_data = <<-EOF
+                #!/bin/bash
+                dnf update -y
+                dnf install -y httpd
+                systemctl start httpd
+                systemctl enable httpd
+                echo "Hello World from $(hostname -f)!" > /var/www/html/index.html
+                EOF
+
+    tags = {
+        Name = "web-server-prod"
+    }
+  
+}
+
+# Outputs
+
+output "instance_public_ip" {
+    description = "The public IP of the EC2 instance"
+    value = aws_instance.web_server_prod.public_ip
+}
